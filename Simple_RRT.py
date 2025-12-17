@@ -14,6 +14,7 @@ class G:
         self.G=[self.q_init] # Start the chain at the initial goal
         self.dists=[]
         self.edges=[]
+        self.path_edges = []
         self.num_circles=40
         print(self.q_goal)
 
@@ -113,6 +114,10 @@ class G:
                 current_pos = new_pos
         return True
 
+    def optimal_path(self, G):
+        """Find the optimal path once the goal has been reached."""
+        self.path = self.G.reverse()
+        
         #Step through 100 points between the goal and the start pos and check collision at each location.
     def create_tree(self):
         '''Loop through the number of vertices and for each one
@@ -139,6 +144,7 @@ class G:
         #Graph the tree
         x_cords=[[point[0] for point in self.G]]
         y_cords=[[point[1] for point in self.G]]
+        print(self.G)
         for x in range(0,len(self.circle),3):
             circle1=plt.Circle((self.circle[x+1],self.circle[x+2]),self.circle[x],color='black')
             patches.append(circle1)
@@ -153,8 +159,8 @@ class G:
         plt.xlim((0,100))
         plt.ylim((0,100))
         plt.title(f'Figure 1: RRT after {len(self.G)} iterations')
-        plt.scatter(self.q_init[0],self.q_init[1], color='red', s=10)
-        plt.scatter(self.q_goal[0],self.q_goal[1], color='green', s=10)
+        plt.scatter(self.q_init[0],self.q_init[1], color='red', s=20)
+        plt.scatter(self.q_goal[0],self.q_goal[1], color='green', s=20)
         plt.show()
         
 if __name__=='__main__':
