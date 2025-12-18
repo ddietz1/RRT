@@ -3,6 +3,7 @@ import math
 import random
 
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.collections import LineCollection
 
 
@@ -23,6 +24,7 @@ class G:
         self.edges = []
         self.path_edges = []
         self.num_circles = 40
+        self.goal_found = False
 
     def _random_config(self, domain):
         """Create a random configuration within the established domain."""
@@ -146,45 +148,33 @@ class G:
         path.reverse()
         return path
 
+    def RRTStep(self):
+        """Step though one iteration of the tree."""
+        self.rand_pos = self._random_config(self.domain)
+        self.q_near, self.step = self.nearest_vertex(self.rand_pos, self.G)
+
+        if self._check_collisions(self.q_near, self.step, self.circle):
+            return False
+
+        if self._check_LOS(self.q_near):
+            self.G.append(self.q_goal)
+            self.tree[tuple(self.q_goal)] = tuple(self.q_near)
+            self.edges.append((self.q_near, self.q_goal))
+            return True  # goal reached
+
+        self.new_config(self.q_near, self.step)
+        return False
+
     def create_tree(self):
         """Call helper functions K times to create the tree."""
-        K = 0
-        patches = []
-        self.circle = self.circles()  # Generate obstacles
-
-        while K < self.K:
-            self.rand_pos = self._random_config(self.domain)
-            self.q_near, self.step = self.nearest_vertex(self.rand_pos, self.G)
-            collide = self._check_collisions(
-                self.q_near, self.step, self.circle
-            )
-            LOS = self._check_LOS(self.q_near)
-            if LOS:
-                self.G.append(self.q_goal)
-                self.tree[tuple(self.q_goal)] = tuple(self.q_near)
-                self.edges.append((self.q_near, self.q_goal))
-                break
-            if collide:
-                continue
-            else:
-                self.new_config(self.q_near, self.step)
-                K += 1
-
-        # Graph the tree
-        x_cords = [[point[0] for point in self.G]]
-        y_cords = [[point[1] for point in self.G]]
-
-        # Extract optimal path
-        path = self.optimal_path()
-        path_coordsx = [[point[0] for point in path]]
-        path_coordsy = [[point[1] for point in path]]
-
-        # Add the edges for the optimal path
-        path_edges = []
-        for i in range(len(path) - 1):
-            path_edges.append((path[i], path[i+1]))
+        fig, ax = plt.subplots()
+        plt.xlim((0, 150))
+        plt.ylim((0, 150))
+        plt.title('Figure 1: RRT Graph')
 
         # Graph obstacles
+        self.circle = self.circles()  # Generate obstacles
+        patches = []
         for x in range(0, len(self.circle), 3):
             circle1 = plt.Circle(
                 (self.circle[x+1],
@@ -193,33 +183,99 @@ class G:
             )
             patches.append(circle1)
 
-        _, ax = plt.subplots()
         for x in patches:
             ax.add_patch(x)
-
-        # Graph all nodes in the tree
-        plt.scatter(x_cords, y_cords, color='Blue', s=10)
-
-        # Graph the connections between each node
-        lines = LineCollection(self.edges, color='blue', linewidths=2)
-        plt.gca().add_collection(lines)
-
-        # Graph only the connections in the optimal path with a new color
-        path_lines = LineCollection(path_edges, color='red', linewidths=2)
-        plt.gca().add_collection(path_lines)
-
-        # Set the parameters for the graph
-        plt.xlim((0, 150))
-        plt.ylim((0, 150))
-        plt.title(f'Figure 1: RRT after {len(self.G)} iterations')
-
-        # Plot the optimal path
-        plt.scatter(path_coordsx, path_coordsy, color='red', s=10)
+        # K = 0
 
         # Plot the end goal and start position
         plt.scatter(self.q_init[0], self.q_init[1], color='purple', s=30)
         plt.scatter(self.q_goal[0], self.q_goal[1], color='green', s=30)
+
+        # Initialize the graphing methods
+        nodes = ax.scatter([], [], s=10, color='blue')
+        tree_lines = LineCollection([], colors='blue', linewidths=1)
+        ax.add_collection(tree_lines)
+
+        def update(frame):
+            if not self.goal_found:
+                reached = self.RRTStep()
+
+                cords = [(point[0], point[1]) for point in self.G]
+
+                nodes.set_offsets(cords)
+                tree_lines.set_segments(self.edges)
+                ax.set_title(f'RRT Growth – Nodes: {len(self.G)}')
+
+                if reached:
+                    self.goal_found = True
+                    path = self.optimal_path()
+                    path_edges = [
+                        (path[i], path[i+1]) for i in range(len(path) - 1)
+                    ]
+                    ax.add_collection(
+                        LineCollection(path_edges, colors='red', linewidths=3)
+                    )
+                    anim.event_source.stop()
+            return nodes, tree_lines
+        anim = FuncAnimation(
+            fig,
+            update,
+            frames=self.K,
+            interval=30,
+            blit=True
+        )
+        anim.save('RRT.gif', writer=PillowWriter(fps=30))
         plt.show()
+
+        # while K < self.K:
+        #     self.rand_pos = self._random_config(self.domain)
+        #     self.q_near, self.step = self.nearest_vertex(self.rand_pos, self.G)
+        #     collide = self._check_collisions(
+        #         self.q_near, self.step, self.circle
+        #     )
+        #     LOS = self._check_LOS(self.q_near)
+        #     if LOS:
+        #         self.G.append(self.q_goal)
+        #         self.tree[tuple(self.q_goal)] = tuple(self.q_near)
+        #         self.edges.append((self.q_near, self.q_goal))
+        #         break
+        #     if collide:
+        #         continue
+        #     else:
+        #         self.new_config(self.q_near, self.step)
+        #         K += 1
+
+        # Graph the tree
+        # x_cords = [[point[0] for point in self.G]]
+        # y_cords = [[point[1] for point in self.G]]
+
+        # # Extract optimal path
+        # path = self.optimal_path()
+        # path_coordsx = [[point[0] for point in path]]
+        # path_coordsy = [[point[1] for point in path]]
+
+        # Add the edges for the optimal path
+        # path_edges = []
+        # for i in range(len(path) - 1):
+        #     path_edges.append((path[i], path[i+1]))
+
+        # # Graph all nodes in the tree
+        # plt.scatter(x_cords, y_cords, color='Blue', s=10)
+
+        # # Graph the connections between each node
+        # lines = LineCollection(self.edges, color='blue', linewidths=2)
+        # plt.gca().add_collection(lines)
+
+        # # Graph only the connections in the optimal path with a new color
+        # path_lines = LineCollection(path_edges, color='red', linewidths=2)
+        # plt.gca().add_collection(path_lines)
+
+        # # Set the parameters for the graph
+
+        # # Plot the optimal path
+        # plt.scatter(path_coordsx, path_coordsy, color='red', s=10)
+
+        # plt.show()
 
 
 if __name__ == '__main__':
